@@ -17,6 +17,10 @@ on:
 env:
   CI: true
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Code Quality Check
@@ -65,9 +69,8 @@ jobs:
         working-directory: packages/core
         env:
           DB: sqljs
-          PACKAGE: core
         run: |
-          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+          npm run e2e -- \
             e2e/order.e2e-spec.ts \
             e2e/shop-order.e2e-spec.ts \
             e2e/order-process.e2e-spec.ts \
@@ -96,9 +99,8 @@ jobs:
         working-directory: packages/core
         env:
           DB: sqljs
-          PACKAGE: core
         run: |
-          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+          npm run e2e -- \
             e2e/payment-process.e2e-spec.ts \
             e2e/payment-method.e2e-spec.ts \
             e2e/order-changed-price-handling.e2e-spec.ts \
@@ -121,9 +123,8 @@ jobs:
         working-directory: packages/core
         env:
           DB: sqljs
-          PACKAGE: core
         run: |
-          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+          npm run e2e -- \
             e2e/auth.e2e-spec.ts \
             e2e/shop-auth.e2e-spec.ts \
             e2e/authentication-strategy.e2e-spec.ts \
@@ -149,9 +150,8 @@ jobs:
         working-directory: packages/core
         env:
           DB: sqljs
-          PACKAGE: core
         run: |
-          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+          npm run e2e -- \
             e2e/product.e2e-spec.ts \
             e2e/product-prices.e2e-spec.ts \
             e2e/product-option.e2e-spec.ts \
@@ -171,10 +171,22 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     services:
+      elastic:
+        image: docker.elastic.co/elasticsearch/elasticsearch:7.1.1
+        env:
+          discovery.type: single-node
+          bootstrap.memory_lock: true
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+          cluster.routing.allocation.disk.watermark.low: 500mb
+          cluster.routing.allocation.disk.watermark.high: 200mb
+          cluster.routing.allocation.disk.watermark.flood_stage: 100mb
+        ports:
+          - 9200
+        options: --health-cmd="curl --silent --fail localhost:9200/_cluster/health" --health-interval=10s --health-timeout=5s --health-retries=3
       redis:
         image: redis:7.4.1
         ports:
-          - 6379:6379
+          - 6379
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -184,25 +196,24 @@ jobs:
         working-directory: packages/core
         env:
           DB: sqljs
-          PACKAGE: core
+          E2E_ELASTIC_PORT: ${{ job.services.elastic.ports['9200'] }}
+          E2E_REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
         run: |
-          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+          npm run e2e -- \
             e2e/default-search-plugin.e2e-spec.ts \
             e2e/shop-catalog.e2e-spec.ts
       - name: Run asset server tests
         working-directory: packages/asset-server-plugin
         env:
           DB: sqljs
-          PACKAGE: asset-server-plugin
-        run: npx vitest --config ../../e2e-common/vitest.config.mts --run
+        run: npm run e2e
       - name: Run job queue tests
         working-directory: packages/core
         env:
           DB: sqljs
-          PACKAGE: core
-          E2E_REDIS_PORT: 6379
+          E2E_REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
         run: |
-          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+          npm run e2e -- \
             e2e/job-queue.e2e-spec.ts
       - name: Summary
         if: always()
