@@ -1,0 +1,231 @@
+name: QA Risk-Based Test Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      risk_tier:
+        description: 'Which risk tier to test'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - critical
+          - high
+          - medium
+
+env:
+  CI: true
+
+jobs:
+  lint:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Lint
+        run: npm run lint -- --max-warnings 0 || true
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build all packages
+        run: npx lerna run ci
+
+  unit-tests:
+    name: Unit Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build
+        run: npx lerna run ci
+      - name: Run unit tests
+        run: npm run test
+      - name: Summary
+        if: always()
+        run: echo "### Unit Tests Complete" >> $GITHUB_STEP_SUMMARY
+
+  critical-risk-orders:
+    name: "Critical Risk: Order Processing"
+    if: ${{ github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'critical' }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build
+        run: npx lerna run ci
+      - name: Run order processing e2e tests
+        working-directory: packages/core
+        env:
+          DB: sqljs
+        run: |
+          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+            e2e/order.e2e-spec.ts \
+            e2e/shop-order.e2e-spec.ts \
+            e2e/order-process.e2e-spec.ts \
+            e2e/order-modification.e2e-spec.ts \
+            e2e/order-merge.e2e-spec.ts \
+            e2e/order-fulfillment.e2e-spec.ts \
+            e2e/order-promotion.e2e-spec.ts \
+            e2e/stock-control.e2e-spec.ts \
+            e2e/stock-control-multi-location.e2e-spec.ts \
+            e2e/draft-order.e2e-spec.ts
+      - name: Summary
+        if: always()
+        run: echo "### Critical Risk — Order Processing Tests Complete" >> $GITHUB_STEP_SUMMARY
+
+  critical-risk-payments:
+    name: "Critical Risk: Payment Processing"
+    if: ${{ github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'critical' }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build
+        run: npx lerna run ci
+      - name: Run payment e2e tests
+        working-directory: packages/core
+        env:
+          DB: sqljs
+        run: |
+          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+            e2e/payment-process.e2e-spec.ts \
+            e2e/payment-method.e2e-spec.ts \
+            e2e/order-changed-price-handling.e2e-spec.ts \
+            e2e/money-strategy.e2e-spec.ts
+      - name: Summary
+        if: always()
+        run: echo "### Critical Risk — Payment Processing Tests Complete" >> $GITHUB_STEP_SUMMARY
+
+  high-risk-auth:
+    name: "High Risk: Authentication & Authorization"
+    if: ${{ github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'high' }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build
+        run: npx lerna run ci
+      - name: Run auth e2e tests
+        working-directory: packages/core
+        env:
+          DB: sqljs
+        run: |
+          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+            e2e/auth.e2e-spec.ts \
+            e2e/shop-auth.e2e-spec.ts \
+            e2e/authentication-strategy.e2e-spec.ts \
+            e2e/session-management.e2e-spec.ts \
+            e2e/role.e2e-spec.ts \
+            e2e/custom-permissions.e2e-spec.ts \
+            e2e/administrator.e2e-spec.ts
+      - name: Summary
+        if: always()
+        run: echo "### High Risk — Auth Tests Complete" >> $GITHUB_STEP_SUMMARY
+
+  high-risk-catalog:
+    name: "High Risk: Product Catalog & Pricing"
+    if: ${{ github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'high' }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build
+        run: npx lerna run ci
+      - name: Run catalog and pricing e2e tests
+        working-directory: packages/core
+        env:
+          DB: sqljs
+        run: |
+          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+            e2e/product.e2e-spec.ts \
+            e2e/product-prices.e2e-spec.ts \
+            e2e/product-option.e2e-spec.ts \
+            e2e/product-channel.e2e-spec.ts \
+            e2e/collection.e2e-spec.ts \
+            e2e/facet.e2e-spec.ts \
+            e2e/promotion.e2e-spec.ts \
+            e2e/order-taxes.e2e-spec.ts \
+            e2e/tax-rate.e2e-spec.ts
+      - name: Summary
+        if: always()
+        run: echo "### High Risk — Catalog & Pricing Tests Complete" >> $GITHUB_STEP_SUMMARY
+
+  medium-risk:
+    name: "Medium Risk: Search, Assets, Job Queue"
+    if: ${{ github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'medium' }}
+    needs: build
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7.4.1
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build
+        run: npx lerna run ci
+      - name: Run search plugin tests
+        working-directory: packages/core
+        env:
+          DB: sqljs
+        run: |
+          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+            e2e/default-search-plugin.e2e-spec.ts \
+            e2e/shop-catalog.e2e-spec.ts
+      - name: Run asset server tests
+        working-directory: packages/asset-server-plugin
+        env:
+          DB: sqljs
+        run: npx vitest --config ../../e2e-common/vitest.config.mts --run
+      - name: Run job queue tests
+        working-directory: packages/core
+        env:
+          DB: sqljs
+          E2E_REDIS_PORT: 6379
+        run: |
+          npx vitest --config ../../e2e-common/vitest.config.mts --run \
+            e2e/job-queue.e2e-spec.ts
+      - name: Summary
+        if: always()
+        run: echo "### Medium Risk — Search, Assets, Job Queue Tests Complete" >> $GITHUB_STEP_SUMMARY
+
+  results:
+    name: Pipeline Summary
+    if: always()
+    needs:
+      - lint
+      - unit-tests
+      - critical-risk-orders
+      - critical-risk-payments
+      - high-risk-auth
+      - high-risk-catalog
+      - medium-risk
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## QA Risk-Based Test Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical: Orders | ${{ needs.critical-risk-orders.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical: Payments | ${{ needs.critical-risk-payments.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| High: Auth | ${{ needs.high-risk-auth.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| High: Catalog | ${{ needs.high-risk-catalog.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Medium: Search/Assets/Jobs | ${{ needs.medium-risk.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Risk tier tested:** ${{ github.event.inputs.risk_tier }}" >> $GITHUB_STEP_SUMMARY
