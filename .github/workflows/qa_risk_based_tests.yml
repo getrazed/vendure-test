@@ -65,6 +65,7 @@ jobs:
         working-directory: packages/core
         env:
           DB: sqljs
+          PACKAGE: core
         run: |
           npx vitest --config ../../e2e-common/vitest.config.mts --run \
             e2e/order.e2e-spec.ts \
@@ -95,6 +96,7 @@ jobs:
         working-directory: packages/core
         env:
           DB: sqljs
+          PACKAGE: core
         run: |
           npx vitest --config ../../e2e-common/vitest.config.mts --run \
             e2e/payment-process.e2e-spec.ts \
@@ -119,6 +121,7 @@ jobs:
         working-directory: packages/core
         env:
           DB: sqljs
+          PACKAGE: core
         run: |
           npx vitest --config ../../e2e-common/vitest.config.mts --run \
             e2e/auth.e2e-spec.ts \
@@ -146,6 +149,7 @@ jobs:
         working-directory: packages/core
         env:
           DB: sqljs
+          PACKAGE: core
         run: |
           npx vitest --config ../../e2e-common/vitest.config.mts --run \
             e2e/product.e2e-spec.ts \
@@ -180,6 +184,7 @@ jobs:
         working-directory: packages/core
         env:
           DB: sqljs
+          PACKAGE: core
         run: |
           npx vitest --config ../../e2e-common/vitest.config.mts --run \
             e2e/default-search-plugin.e2e-spec.ts \
@@ -188,11 +193,13 @@ jobs:
         working-directory: packages/asset-server-plugin
         env:
           DB: sqljs
+          PACKAGE: asset-server-plugin
         run: npx vitest --config ../../e2e-common/vitest.config.mts --run
       - name: Run job queue tests
         working-directory: packages/core
         env:
           DB: sqljs
+          PACKAGE: core
           E2E_REDIS_PORT: 6379
         run: |
           npx vitest --config ../../e2e-common/vitest.config.mts --run \
