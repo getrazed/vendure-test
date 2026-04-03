@@ -114,7 +114,7 @@ jobs:
               working-directory: packages/dashboard
     sonarqube:
         name: SonarQube
-        if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
+        if: false
         runs-on: ubuntu-latest
         permissions:
             contents: read

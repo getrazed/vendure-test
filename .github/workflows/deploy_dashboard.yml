@@ -1,17 +1,7 @@
 name: '🚀 Deploy Dashboard'
 
 on:
-    push:
-        branches:
-            - minor
-            - major
-            - master
-        paths:
-            - 'packages/dashboard/**'
-            - 'package.json'
-            - 'package-lock.json'
-            - 'packages/core/**'
-            - 'packages/common/**'
+    workflow_dispatch:
 
 env:
     NEXT_TELEMETRY_DISABLED: 1

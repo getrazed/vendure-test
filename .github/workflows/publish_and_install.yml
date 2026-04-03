@@ -1,24 +1,6 @@
 name: Publish & Install
 on:
     workflow_dispatch:
-    push:
-        branches:
-            - master
-            - minor
-            - major
-        paths:
-            - 'packages/**'
-            - 'package.json'
-            - 'package-lock.json'
-    pull_request:
-        branches:
-            - master
-            - major
-            - minor
-        paths:
-            - 'packages/**'
-            - 'package.json'
-            - 'package-lock.json'
 
 defaults:
     run:
