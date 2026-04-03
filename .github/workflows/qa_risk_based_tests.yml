@@ -80,7 +80,8 @@ jobs:
             e2e/order-promotion.e2e-spec.ts \
             e2e/stock-control.e2e-spec.ts \
             e2e/stock-control-multi-location.e2e-spec.ts \
-            e2e/draft-order.e2e-spec.ts
+            e2e/draft-order.e2e-spec.ts \
+            e2e/order-lifecycle-qa.e2e-spec.ts
       - name: Summary
         if: always()
         run: echo "### Critical Risk — Order Processing Tests Complete" >> $GITHUB_STEP_SUMMARY
@@ -104,7 +105,8 @@ jobs:
             e2e/payment-process.e2e-spec.ts \
             e2e/payment-method.e2e-spec.ts \
             e2e/order-changed-price-handling.e2e-spec.ts \
-            e2e/money-strategy.e2e-spec.ts
+            e2e/money-strategy.e2e-spec.ts \
+            e2e/payment-qa.e2e-spec.ts
       - name: Summary
         if: always()
         run: echo "### Critical Risk — Payment Processing Tests Complete" >> $GITHUB_STEP_SUMMARY
