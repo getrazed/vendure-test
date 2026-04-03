@@ -30,47 +30,51 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { initialData } from '../../../e2e-common/e2e-initial-data';
 import { TEST_SETUP_TIMEOUT_MS, testConfig } from '../../../e2e-common/test-config';
 
-import { ORDER_WITH_LINES_FRAGMENT, PAYMENT_FRAGMENT } from './graphql/fragments';
 import {
+    singleStageRefundablePaymentMethod,
+    testErrorPaymentMethod,
     testFailingPaymentMethod,
     testSuccessfulPaymentMethod,
     twoStagePaymentMethod,
-    testErrorPaymentMethod,
-    singleStageRefundablePaymentMethod,
 } from './fixtures/test-payment-methods';
+import { PAYMENT_FRAGMENT } from './graphql/fragments';
 import * as Codegen from './graphql/generated-e2e-admin-types';
 import * as CodegenShop from './graphql/generated-e2e-shop-types';
 import { TestOrderFragmentFragment } from './graphql/generated-e2e-shop-types';
 import {
-    GET_ORDER,
     GET_CUSTOMER_LIST,
-    SETTLE_PAYMENT,
+    GET_ORDER,
     GET_ORDER_HISTORY,
+    SETTLE_PAYMENT,
 } from './graphql/shared-definitions';
-import {
-    ADD_ITEM_TO_ORDER,
-    ADD_PAYMENT,
-} from './graphql/shop-definitions';
+import { ADD_ITEM_TO_ORDER, ADD_PAYMENT } from './graphql/shop-definitions';
 import { addPaymentToOrder, proceedToArrangingPayment } from './utils/test-order-utils';
 
 // ─── Local GraphQL Definitions ──────────────────────────────────────────────
 
+const REFUND_FRAGMENT = gql`
+    fragment Refund on Refund {
+        id
+        state
+        items
+        transactionId
+        shipping
+        total
+        metadata
+    }
+`;
+
 const REFUND_ORDER = gql`
     mutation RefundOrder($input: RefundOrderInput!) {
         refundOrder(input: $input) {
-            id
-            state
-            items
-            transactionId
-            shipping
-            total
-            metadata
+            ...Refund
             ... on ErrorResult {
                 errorCode
                 message
             }
         }
     }
+    ${REFUND_FRAGMENT}
 `;
 
 const CANCEL_PAYMENT = gql`
@@ -338,9 +342,7 @@ describe('Payment Processing QA Integration Test', () => {
 
             // Error payment — the mutation returns an error result or the order stays in ArrangingPayment
             expect(
-                (result as any).errorCode ||
-                    (result as any).paymentErrorMessage ||
-                    (result as any).message,
+                (result as any).errorCode || (result as any).paymentErrorMessage || (result as any).message,
             ).toBeTruthy();
         });
     });
@@ -431,10 +433,10 @@ describe('Payment Processing QA Integration Test', () => {
         });
 
         it('admin can issue a refund against the settled payment', async () => {
-            const { order } = await adminClient.query<
-                Codegen.GetOrderQuery,
-                Codegen.GetOrderQueryVariables
-            >(GET_ORDER, { id: orderId });
+            const { order } = await adminClient.query<Codegen.GetOrderQuery, Codegen.GetOrderQueryVariables>(
+                GET_ORDER,
+                { id: orderId },
+            );
 
             const { refundOrder } = await adminClient.query(REFUND_ORDER, {
                 input: {
@@ -472,9 +474,7 @@ describe('Payment Processing QA Integration Test', () => {
             >(GET_ORDER_HISTORY, { id: '2' });
 
             const paymentEntries = order?.history.items.filter(
-                item =>
-                    item.type === 'ORDER_PAYMENT_TRANSITION' ||
-                    item.type === 'ORDER_STATE_TRANSITION',
+                item => item.type === 'ORDER_PAYMENT_TRANSITION' || item.type === 'ORDER_STATE_TRANSITION',
             );
 
             // Should have entries for payment and order transitions
