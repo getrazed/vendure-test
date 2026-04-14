@@ -81,7 +81,8 @@ jobs:
             e2e/stock-control.e2e-spec.ts \
             e2e/stock-control-multi-location.e2e-spec.ts \
             e2e/draft-order.e2e-spec.ts \
-            e2e/order-lifecycle-qa.e2e-spec.ts
+            e2e/order-lifecycle-qa.e2e-spec.ts \
+            e2e/midterm-qa-extended.e2e-spec.ts
       - name: Summary
         if: always()
         run: echo "### Critical Risk — Order Processing Tests Complete" >> $GITHUB_STEP_SUMMARY
