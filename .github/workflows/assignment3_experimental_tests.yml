@@ -2,11 +2,6 @@ name: Assignment 3 Experimental Tests
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'scripts/assignment3/**'
-      - 'packages/core/e2e/fixtures/test-payment-methods.ts'
-      - '.github/workflows/assignment3_experimental_tests.yml'
 
 env:
   CI: true

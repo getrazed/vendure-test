@@ -1,6 +1,7 @@
 name: QA Risk-Based Test Pipeline
 
 on:
+  push:
   workflow_dispatch:
     inputs:
       risk_tier:
@@ -57,7 +58,7 @@ jobs:
 
   critical-risk-orders:
     name: "Critical Risk: Order Processing"
-    if: ${{ github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'critical' }}
+    if: ${{ github.event_name == 'push' || github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'critical' }}
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -89,7 +90,7 @@ jobs:
 
   critical-risk-payments:
     name: "Critical Risk: Payment Processing"
-    if: ${{ github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'critical' }}
+    if: ${{ github.event_name == 'push' || github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'critical' }}
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -114,7 +115,7 @@ jobs:
 
   high-risk-auth:
     name: "High Risk: Authentication & Authorization"
-    if: ${{ github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'high' }}
+    if: ${{ github.event_name == 'push' || github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'high' }}
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -141,7 +142,7 @@ jobs:
 
   high-risk-catalog:
     name: "High Risk: Product Catalog & Pricing"
-    if: ${{ github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'high' }}
+    if: ${{ github.event_name == 'push' || github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'high' }}
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -170,7 +171,7 @@ jobs:
 
   medium-risk:
     name: "Medium Risk: Search, Assets, Job Queue"
-    if: ${{ github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'medium' }}
+    if: ${{ github.event_name == 'push' || github.event.inputs.risk_tier == 'all' || github.event.inputs.risk_tier == 'medium' }}
     needs: build
     runs-on: ubuntu-latest
     services:
@@ -222,6 +223,34 @@ jobs:
         if: always()
         run: echo "### Medium Risk — Search, Assets, Job Queue Tests Complete" >> $GITHUB_STEP_SUMMARY
 
+  assignment3-experiments:
+    name: "Assignment 3: Performance, Mutation, Chaos"
+    if: ${{ github.event_name == 'push' || github.event.inputs.risk_tier == 'all' }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Build core dependencies
+        run: npm run build:core-common
+      - name: Run Assignment 3 performance
+        run: npm run assignment3:performance
+      - name: Run Assignment 3 mutation
+        run: npm run assignment3:mutation
+      - name: Run Assignment 3 chaos
+        run: npm run assignment3:chaos
+      - name: Upload Assignment 3 artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assignment3-artifacts-${{ github.run_id }}
+          path: assignment3/artifacts/*.json
+          if-no-files-found: error
+      - name: Summary
+        if: always()
+        run: echo "### Assignment 3 experimental tests complete" >> $GITHUB_STEP_SUMMARY
+
   results:
     name: Pipeline Summary
     if: always()
@@ -233,6 +262,7 @@ jobs:
       - high-risk-auth
       - high-risk-catalog
       - medium-risk
+      - assignment3-experiments
     runs-on: ubuntu-latest
     steps:
       - name: Generate summary
@@ -248,5 +278,6 @@ jobs:
           echo "| High: Auth | ${{ needs.high-risk-auth.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| High: Catalog | ${{ needs.high-risk-catalog.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Medium: Search/Assets/Jobs | ${{ needs.medium-risk.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Assignment 3 Experiments | ${{ needs.assignment3-experiments.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Risk tier tested:** ${{ github.event.inputs.risk_tier }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Risk tier tested:** ${{ github.event.inputs.risk_tier || 'all-on-push' }}" >> $GITHUB_STEP_SUMMARY
