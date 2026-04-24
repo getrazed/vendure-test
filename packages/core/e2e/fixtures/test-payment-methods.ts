@@ -3,15 +3,48 @@ import { vi } from 'vitest';
 
 import { LanguageCode } from '../graphql/generated-e2e-admin-types';
 
+const activeMutant = process.env.QA_MUTANT ?? '';
+const activeChaos = process.env.QA_CHAOS ?? '';
+
+const isMutant = (mutantId: string) => activeMutant === mutantId;
+const isChaosProfile = (profileId: string) => activeChaos === profileId;
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+let chaosPaymentOutageAttempts = 0;
+let chaosSettleBlipAttempts = 0;
+
 export const testSuccessfulPaymentMethod = new PaymentMethodHandler({
     code: 'test-payment-method',
     description: [{ languageCode: LanguageCode.en, value: 'Test Payment Method' }],
     args: {},
-    createPayment: (ctx, order, amount, args, metadata) => {
+    createPayment: async (ctx, order, amount, args, metadata) => {
+        if (isChaosProfile('PAYMENT_LATENCY')) {
+            await sleep(500);
+        }
+        if (isChaosProfile('PAYMENT_OUTAGE')) {
+            chaosPaymentOutageAttempts++;
+            if (chaosPaymentOutageAttempts <= 2) {
+                return {
+                    amount,
+                    state: 'Error',
+                    errorMessage: 'Simulated gateway outage',
+                    metadata: { public: metadata },
+                };
+            }
+        }
+        if (isMutant('M1_SUCCESS_TO_DECLINED')) {
+            return {
+                amount,
+                state: 'Declined',
+                errorMessage: 'Mutant converted success to decline',
+                metadata: { public: metadata },
+            };
+        }
         return {
             amount,
             state: 'Settled',
-            transactionId: '12345',
+            transactionId: isMutant('M2_SUCCESS_TXID_CHANGED') ? 'mutant-tx' : '12345',
             metadata: { public: metadata },
         };
     },
@@ -30,6 +63,14 @@ export const twoStagePaymentMethod = new PaymentMethodHandler({
     description: [{ languageCode: LanguageCode.en, value: 'Test Payment Method' }],
     args: {},
     createPayment: (ctx, order, amount, args, metadata) => {
+        if (isMutant('M3_TWO_STAGE_BECOMES_SINGLE_STAGE')) {
+            return {
+                amount,
+                state: 'Settled',
+                transactionId: '12345-' + order.code,
+                metadata: { public: metadata },
+            };
+        }
         return {
             amount,
             state: 'Authorized',
@@ -37,7 +78,24 @@ export const twoStagePaymentMethod = new PaymentMethodHandler({
             metadata: { public: metadata },
         };
     },
-    settlePayment: () => {
+    settlePayment: async () => {
+        if (isChaosProfile('SETTLE_BLIP')) {
+            chaosSettleBlipAttempts++;
+            if (chaosSettleBlipAttempts === 1) {
+                return {
+                    success: false,
+                    state: 'Error',
+                    errorMessage: 'Simulated settle timeout',
+                };
+            }
+        }
+        if (isMutant('M4_SETTLE_RETURNS_ERROR')) {
+            return {
+                success: false,
+                state: 'Error',
+                errorMessage: 'Mutant forced settle error',
+            };
+        }
         return {
             success: true,
             metadata: {
@@ -101,6 +159,13 @@ export const singleStageRefundablePaymentMethod = new PaymentMethodHandler({
         return { success: true };
     },
     createRefund: (ctx, input, amount, order, payment, args) => {
+        if (isMutant('M7_REFUND_SETTLED_TO_FAILED')) {
+            return {
+                state: 'Failed',
+                transactionId: 'mutant-refund-failed',
+                metadata: { amount },
+            };
+        }
         return {
             state: 'Settled',
             transactionId: 'abc123',
@@ -215,6 +280,14 @@ export const testFailingPaymentMethod = new PaymentMethodHandler({
     description: [{ languageCode: LanguageCode.en, value: 'Test Failing Payment Method' }],
     args: {},
     createPayment: (ctx, order, amount, args, metadata) => {
+        if (isMutant('M5_FAILING_TO_SETTLED')) {
+            return {
+                amount,
+                state: 'Settled',
+                transactionId: 'mutant-recovered',
+                metadata: { public: metadata },
+            };
+        }
         return {
             amount,
             state: 'Declined',
@@ -231,6 +304,14 @@ export const testErrorPaymentMethod = new PaymentMethodHandler({
     description: [{ languageCode: LanguageCode.en, value: 'Test Error Payment Method' }],
     args: {},
     createPayment: (ctx, order, amount, args, metadata) => {
+        if (isMutant('M6_ERROR_TO_DECLINED')) {
+            return {
+                amount,
+                state: 'Declined',
+                errorMessage: 'Mutant changed error to decline',
+                metadata,
+            };
+        }
         return {
             amount,
             state: 'Error',
